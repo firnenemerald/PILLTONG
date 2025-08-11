@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pilltongapp/models/medication.dart';
+import 'package:pilltongapp/services/notification_service.dart';
 
 class AddMedicationScreen extends StatefulWidget {
   const AddMedicationScreen({super.key});
@@ -16,14 +17,22 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
   final _dosageController = TextEditingController();
   String _selectedFrequency = 'Once a day';
   List<TimeOfDay> _customTimes = [];
+  List<TimeOfDay> _scheduledTimes = []; // For once/twice a day selections
   bool _isLoading = false;
 
   final List<String> _frequencies = [
     'Once a day',
     'Twice a day',
     '3 times a day',
+    'Every 8 hours',
     'Custom times'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeScheduledTimes();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,9 +103,35 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
                   if (_selectedFrequency != 'Custom times') {
                     _customTimes.clear();
                   }
+                  if (_selectedFrequency != 'Once a day' && _selectedFrequency != 'Twice a day' && _selectedFrequency != 'Every 8 hours') {
+                    _scheduledTimes.clear();
+                  } else {
+                    // Initialize scheduled times with default values
+                    _initializeScheduledTimes();
+                  }
                 });
               },
             ),
+            // Time selection for Once a day, Twice a day, and Every 8 hours
+            if (_selectedFrequency == 'Once a day' || _selectedFrequency == 'Twice a day' || _selectedFrequency == 'Every 8 hours') ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '복용 시간 설정 (${_selectedFrequency})',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._buildScheduledTimeWidgets(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             if (_selectedFrequency == 'Custom times') ...[
               const SizedBox(height: 16),
               Card(
@@ -138,6 +173,70 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
     );
   }
 
+  void _initializeScheduledTimes() {
+    if (_selectedFrequency == 'Once a day') {
+      _scheduledTimes = [const TimeOfDay(hour: 9, minute: 0)];
+    } else if (_selectedFrequency == 'Twice a day') {
+      _scheduledTimes = [
+        const TimeOfDay(hour: 9, minute: 0),
+        const TimeOfDay(hour: 21, minute: 0),
+      ];
+    } else if (_selectedFrequency == 'Every 8 hours') {
+      _scheduledTimes = [
+        const TimeOfDay(hour: 8, minute: 0),
+        const TimeOfDay(hour: 16, minute: 0),
+        const TimeOfDay(hour: 0, minute: 0),
+      ];
+    }
+  }
+
+  List<Widget> _buildScheduledTimeWidgets() {
+    List<Widget> widgets = [];
+    
+    for (int i = 0; i < _scheduledTimes.length; i++) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Row(
+            children: [
+              Text('${i + 1}회차: '),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectScheduledTime(i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _scheduledTimes[i].format(context),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return widgets;
+  }
+
+  Future<void> _selectScheduledTime(int index) async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _scheduledTimes[index],
+    );
+    if (time != null) {
+      setState(() {
+        _scheduledTimes[index] = time;
+      });
+    }
+  }
+
   Future<void> _addCustomTime() async {
     final time = await showTimePicker(
       context: context,
@@ -162,6 +261,11 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       return;
     }
 
+    if ((_selectedFrequency == 'Once a day' || _selectedFrequency == 'Twice a day' || _selectedFrequency == 'Every 8 hours') && 
+        _scheduledTimes.isEmpty) {
+      _initializeScheduledTimes();
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -171,8 +275,14 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
       if (userId == null) return;
 
       List<String>? customTimesString;
+      List<String>? scheduledTimesString;
+      
       if (_selectedFrequency == 'Custom times') {
         customTimesString = _customTimes
+            .map((time) => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}')
+            .toList();
+      } else if (_selectedFrequency == 'Once a day' || _selectedFrequency == 'Twice a day' || _selectedFrequency == 'Every 8 hours') {
+        scheduledTimesString = _scheduledTimes
             .map((time) => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}')
             .toList();
       }
@@ -182,20 +292,75 @@ class _AddMedicationScreenState extends State<AddMedicationScreen> {
         dosage: _dosageController.text.trim(),
         frequency: _selectedFrequency,
         customNotificationTimes: customTimesString,
+        scheduledTimes: scheduledTimesString,
         notificationsEnabled: true,
       );
 
-      await FirebaseFirestore.instance
+      // Save to Firestore
+      final docRef = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('medications')
           .add(medication.toMap());
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('약물이 추가되었습니다')),
-        );
+      // Schedule notifications
+      final notificationTimes = medication.getNotificationTimes();
+      if (notificationTimes.isNotEmpty) {
+        try {
+          // Check if notifications are enabled first
+          final notificationService = NotificationService();
+          final bool permissionsGranted = await notificationService.areNotificationsEnabled();
+          
+          if (!permissionsGranted) {
+            // Request permissions
+            final bool requested = await notificationService.requestPermissions();
+            if (!requested) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('알림 권한이 없습니다. 설정에서 권한을 허용해주세요.'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 5),
+                  ),
+                );
+              }
+              return;
+            }
+          }
+          
+          await notificationService.scheduleMedicationNotifications(
+            medicationId: docRef.id,
+            medicationName: medication.name,
+            times: notificationTimes,
+          );
+          
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('약물이 추가되고 알림이 설정되었습니다')),
+            );
+          }
+        } catch (e) {
+          print('Failed to schedule notifications: $e');
+          // Show warning but don't prevent medication from being saved
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('약물이 추가되었지만 알림 설정에 실패했습니다. 설정에서 알림을 다시 설정해주세요.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('약물이 추가되었습니다')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pilltongapp/models/medication.dart';
 import 'package:pilltongapp/screens/add_medication_screen.dart';
 import 'package:pilltongapp/screens/edit_medication_screen.dart';
+import 'package:pilltongapp/services/medication_service.dart';
 
 class MedListTab extends StatelessWidget {
   const MedListTab({super.key});
@@ -72,35 +73,61 @@ class MedListTab extends StatelessWidget {
                             ],
                           ),
                           isThreeLine: true,
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('약물 삭제'),
-                                  content: Text('${med.name}을(를) 삭제하시겠습니까?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('취소'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Switch(
+                                value: med.notificationsEnabled,
+                                onChanged: (value) async {
+                                  try {
+                                    await MedicationService().toggleNotification(docId, value);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(value ? '알림이 활성화되었습니다' : '알림이 비활성화되었습니다'),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('오류가 발생했습니다: $e')),
+                                    );
+                                  }
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('약물 삭제'),
+                                      content: Text('${med.name}을(를) 삭제하시겠습니까?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          child: const Text('취소'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, true),
+                                          child: const Text('삭제'),
+                                        ),
+                                      ],
                                     ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('삭제'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed == true) {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(userId)
-                                    .collection('medications')
-                                    .doc(docId)
-                                    .delete();
-                              }
-                            },
+                                  );
+                                  if (confirmed == true) {
+                                    try {
+                                      await MedicationService().deleteMedication(docId);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('약물이 삭제되었습니다')),
+                                      );
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('삭제 실패: $e')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ),
