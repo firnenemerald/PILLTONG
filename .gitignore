@@ -49,5 +49,20 @@ app.*.map.json
 /web/
 /windows/
 
-# Lib firebase credentials
-/lib/firebase_options.dart
+# Firebase and sensitive configuration files
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/firebase_app_id_file.json
+
+# API keys and environment files
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+
+# Secret configuration files
+secrets/
+config/secrets/
