@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pilltongapp/models/medication.dart';
-import 'package:pilltongapp/screens/edit_medication_screen.dart';
 
 class EditMedicationScreen extends StatefulWidget {
   final Medication medication;
