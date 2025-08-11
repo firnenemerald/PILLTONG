@@ -48,3 +48,6 @@ app.*.map.json
 /test/
 /web/
 /windows/
+
+# Lib firebase credentials
+/lib/firebase_options.dart
