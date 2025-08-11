@@ -10,6 +10,7 @@ class Medication {
   final String dosage;
   final String frequency;
   final List<String>? customNotificationTimes; // Store as HH:MM format
+  final List<String>? scheduledTimes; // Store scheduled times for once/twice a day
   final bool notificationsEnabled;
 
   Medication({
@@ -17,6 +18,7 @@ class Medication {
     required this.dosage,
     required this.frequency,
     this.customNotificationTimes,
+    this.scheduledTimes,
     this.notificationsEnabled = true,
   });
 
@@ -28,6 +30,7 @@ class Medication {
       'dosage': dosage,
       'frequency': frequency,
       'customNotificationTimes': customNotificationTimes,
+      'scheduledTimes': scheduledTimes,
       'notificationsEnabled': notificationsEnabled,
     };
   }
@@ -48,14 +51,26 @@ class Medication {
       customNotificationTimes: data['customNotificationTimes'] != null
           ? List<String>.from(data['customNotificationTimes'])
           : null,
+      scheduledTimes: data['scheduledTimes'] != null
+          ? List<String>.from(data['scheduledTimes'])
+          : null,
       notificationsEnabled: data['notificationsEnabled'] ?? true,
     );
   }
 
   // Helper method to get notification times as TimeOfDay objects
   List<TimeOfDay> getNotificationTimes() {
+    // If custom times are set, use those
     if (customNotificationTimes != null && customNotificationTimes!.isNotEmpty) {
       return customNotificationTimes!.map((timeString) {
+        final parts = timeString.split(':');
+        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      }).toList();
+    }
+
+    // If scheduled times are set for once/twice a day, use those
+    if (scheduledTimes != null && scheduledTimes!.isNotEmpty) {
+      return scheduledTimes!.map((timeString) {
         final parts = timeString.split(':');
         return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
       }).toList();
@@ -67,6 +82,12 @@ class Medication {
         TimeOfDay(hour: 8, minute: 0),
         TimeOfDay(hour: 14, minute: 0),
         TimeOfDay(hour: 20, minute: 0),
+      ];
+    } else if (frequency.toLowerCase().contains('every 8 hours')) {
+      return [
+        TimeOfDay(hour: 8, minute: 0),
+        TimeOfDay(hour: 16, minute: 0),
+        TimeOfDay(hour: 0, minute: 0),
       ];
     } else if (frequency.toLowerCase().contains('twice a day')) {
       return [

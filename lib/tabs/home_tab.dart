@@ -7,6 +7,38 @@ import 'package:pilltongapp/screens/edit_medication_screen.dart';
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
+  String _getNextDoseInfo(List<TimeOfDay> times) {
+    final now = TimeOfDay.now();
+    final currentMinutes = now.hour * 60 + now.minute;
+    
+    // Find the next dose time today
+    for (final time in times) {
+      final timeMinutes = time.hour * 60 + time.minute;
+      if (timeMinutes > currentMinutes) {
+        final diff = timeMinutes - currentMinutes;
+        final hours = diff ~/ 60;
+        final minutes = diff % 60;
+        if (hours > 0) {
+          return '$hours시간 ${minutes}분 후';
+        } else {
+          return '${minutes}분 후';
+        }
+      }
+    }
+    
+    // If no dose today, show first dose tomorrow
+    if (times.isNotEmpty) {
+      final firstTime = times.first;
+      final remainingToday = (24 * 60) - currentMinutes;
+      final tomorrowMinutes = firstTime.hour * 60 + firstTime.minute;
+      final totalMinutes = remainingToday + tomorrowMinutes;
+      final hours = totalMinutes ~/ 60;
+      return '${hours}시간 후 (내일)';
+    }
+    
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -92,6 +124,14 @@ class HomeTab extends StatelessWidget {
                               const SizedBox(height: 8),
                               Text('용량: ${med.dosage}'),
                               Text('빈도: ${med.frequency}'),
+                              const SizedBox(height: 4),
+                              Text(
+                                '다음 복용: ${_getNextDoseInfo(times)}',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               const Text(
                                 '복용 시간:',

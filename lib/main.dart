@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pilltongapp/firebase_options.dart';
 import 'package:pilltongapp/screens/splash_screen.dart';
 import 'package:pilltongapp/services/notification_service.dart';
+import 'package:pilltongapp/services/medication_service.dart';
 
 void main() async {
   try {
@@ -20,6 +21,15 @@ void main() async {
     try {
       await NotificationService().initialize();
       print('Notification service initialized');
+      
+      // Reschedule all notifications in case the app was updated or restarted
+      try {
+        await MedicationService().rescheduleAllNotifications();
+        print('Medication notifications rescheduled');
+      } catch (e) {
+        print('Failed to reschedule notifications: $e');
+        // Don't prevent app from starting if rescheduling fails
+      }
     } catch (e) {
       print('Failed to initialize notifications: $e');
       // Continue even if notifications fail
